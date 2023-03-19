@@ -1,0 +1,362 @@
+---
+jupyter:
+  jupytext:
+    formats: ipynb,Rmd
+    text_representation:
+      extension: .Rmd
+      format_name: rmarkdown
+      format_version: '1.2'
+      jupytext_version: 1.14.5
+  kernelspec:
+    display_name: R
+    language: R
+    name: ir
+---
+
+<!-- #region slideshow={"slide_type": "slide"} -->
+# Language Binding in R with JuliaCall
+---
+
+**Gregory Farage, Śaunak Sen**    
+
+    gfarage@uthsc.edu / sen@uthsc.edu
+    Division of Biostatistics
+    Department of Preventive Medicine
+    University of Tennessee Health Science Center
+    Memphis, TN
+
+`JuliaCall` is a package that enables the integration of Julia language into R programming. With `JuliaCall`, users can execute Julia commands and functions within R, utilizing Julia's high-performance computing capabilities while still working within the familiar R environment. The package provides seamless communication between the two languages, allowing for data to be passed between R and Julia with ease. `JuliaCall` also provides for the installation of Julia packages from within R, making it a convenient tool for those looking to leverage the power of Julia while still utilizing R as their primary programming language.
+
+
+*References for this notebook:*
+* [JuliaCall: Integrating R and Julia by Hans W. Borchers](https://hwborchers.github.io/)
+* [JuliaCall.jl](https://cran.r-project.org/web/packages/JuliaCall/index.html)
+<!-- #endregion -->
+
+<!-- #region slideshow={"slide_type": "subslide"} -->
+### Outline of this notebook
+
+- Calling python built-in function 
+- Calling python hand-written function 
+- Importing python libraries
+- Calling R built-in function
+- Calling R hand-written function
+<!-- #endregion -->
+
+`JuliaCall` offers a valuable solution for those seeking to take advantage of the benefits of both R and Julia in their data analysis and scientific computing projects.
+
+
+## Example choice
+
+
+Let's use the `sum` function as an example to understand how calling mechanisms work.   
+
+The function `sum(x)` can computes the sum of all elements in an array `x` of length $n$:
+$$
+\mathrm{sum}(x) = \sum_{i=1}^n x_i.
+$$
+
+
+Generate a vector of random numbers
+
+```{r slideshow={'slide_type': 'subslide'}}
+a <- runif(n=10^3, min=0, max=1)
+```
+
+<!-- #region slideshow={"slide_type": "-"} -->
+The expected value is 500, since the vector `a` has a uniform distribution on [0,1) with each entry having a mean of 0.5.
+<!-- #endregion -->
+
+```{r}
+sum(a)
+```
+
+<!-- #region slideshow={"slide_type": "slide"} -->
+## JuliaCall first initialization
+<!-- #endregion -->
+
+```{r}
+library(JuliaCall)
+julia_setup() # Do initial setup for the JuliaCall package.
+```
+
+We can specify the path to a specific Julia version in the `julia_setup()` function by providing it as an option or argument. The code below illustrates how to initiate a Julia installation from a different directory.   
+```R
+> julia_setup(JULIA_HOME = "~/Softwares/julia/julia-1.8.5/bin/")
+```
+
+<!-- #region slideshow={"slide_type": "slide"} -->
+## Calling Julia's built-in `sum` 
+<!-- #endregion -->
+
+In this example, the vector `a` is passed as an argument to the `sum` function in Julia. The argument `a` is first converted from R to a Julia object, and then the sum operation is performed on it. The resulting value is then returned back to R as an R object, which can be assigned to a variable. Notably,in this implementation, the variable `a` is NOT generated within the Julia environment.
+
+```{r}
+julia_call("sum", a)
+```
+
+To convert an R object, such as a number, vector, or matrix, into a Julia object and assign it to a variable name, the `julia_assign()` command must be used. The resulting variable can then be used in other Julia commands.
+
+
+First let see if the variable exist in Julia:
+
+```{r}
+julia_exists("name_var_in_julia")
+```
+
+```{r}
+julia_assign("name_var_in_julia", a)
+```
+
+Now, let's confirm that the variable named "name_var_in_julia" exists:
+
+```{r}
+julia_exists("name_var_in_julia")
+```
+
+<!-- #region slideshow={"slide_type": "slide"} -->
+## Calling hand-written Julia `sum` function 
+
+
+#### Loading local Julia code
+In this instance, we created a Julia script called *julia_sum.jl* to process the `sum` function, which we then import into R via `JuliaCall`. This method permits us to load the code locally within R.
+<!-- #endregion -->
+
+_filename: julia_sum.jl_
+
+```julia
+function jl_sum(R)
+    s = 0.0
+    for r in R
+        s += r
+    end
+    return s
+end
+```
+
+
+We use the `julia_source()` function to source our Julia code file.
+
+```{r}
+julia_source("julia_sum.jl")
+```
+
+Let's verify that our function `jl_sum()` is defined in Julia: 
+
+```{r}
+julia_exists("jl_sum")
+```
+
+To apply our new Julia sum function, `jl_sum()`, and save the result we can just use `julia_call()` such as:
+
+```{r}
+result <- julia_call("jl_sum", a)
+result
+```
+
+#### Wrapping Julia code in R
+
+<!-- #region slideshow={"slide_type": "subslide"} -->
+Another option consist in writting the string containing a Julia expression/function  and wrap it into the R function `julia_command()`:
+<!-- #endregion -->
+
+```{r}
+julia_command(
+    "function jl_sum2(R)
+        s = 0.0
+        for r in R
+            s += r
+        end
+        return s
+    end"
+)
+```
+
+Simlarly, we can obtain our result with `julia_call()`:
+
+```{r}
+julia_call("jl_sum2", a)
+```
+
+Notice that the output of a `julia_command()` corresponds to the output we would get in Julia. The function `julia_eval()` returns the output in R. Let's try a simple example:
+
+
+Julia's output:
+
+```{r}
+julia_command("typeof(name_var_in_julia)")
+```
+
+R's output:
+
+```{r}
+julia_eval("typeof(name_var_in_julia)")
+```
+
+<!-- #region slideshow={"slide_type": "slide"} -->
+## Transfering data between Julia and R 
+
+To transfer data between both languages, `JuliaCall.jl` provides two functions: `julia_assign()` and `julia_evaluate()`.
+
+* The `julia_evaluate()` function is used to transfer data from Julia to R. 
+* The `julia_assign()` function is used to transfer data from R to Julia. 
+<!-- #endregion -->
+
+In the next example, we demonstrate how to tranfer data between R and Julia.
+For this demonstration, we use a small dataset, which is based on a genetic study conducted on Arabidopsis thaliana, sourced from [Ågren et. al. (2013) via John Lovell](https://www.ncbi.nlm.nih.gov/pmc/articles/PMC3876199/). The phenotype dataset comprises a group of Arabidopsis recombinant inbred lines that were obtained from a cross between two parents hailing from Italy and Sweden. These lines were cultivated in Italy and Sweden over a span of three years, from 2009 to 2011. The phenotype, which is an indicator of fitness, is the average number of seeds per plant for each line. In addition, we possess the genotype data for the FLC (Flowering Time C) locus.
+
+Column names:
+
+- id: ID of RI line (first two are the parents)
+- it09: Italy 2009
+- it10: Italy 2010
+- it11: Italy 2011
+- sw09: Sweden 2009
+- sw10: Sweden 2010
+- sw11: Sweden 2011
+- flc: Flowering time locus (C) genotype
+
+
+Let's load the necessary packages to read the data:
+
+```{r}
+julia_command("using DataFrames, CSV" )
+```
+
+If a package is not found, we can install it using the function `julia_install_package_if_needed()`, which takes the string of the package's name as argument.
+
+```{r}
+# to install package
+# julia_install_package_if_needed("DataFrames")
+```
+
+As shown in the previous section, we can transfer data from R to Julia using `julia_assign()`. For example, we can transfer a string URL to Julia and store the information in a variable named `agrenURL`.
+
+```{r}
+julia_assign("agrenURL", 
+             "https://raw.githubusercontent.com/sens/smalldata/master/arabidopsis/agren2013.csv")
+```
+
+Let's read and store our dataframe into `agren` in Julia. 
+
+```{r slideshow={'slide_type': '-'}}
+julia_command(
+    paste("agren = CSV.read(download(agrenURL),DataFrame, missingstring=\"NA\");",
+    "agren = dropmissing(agren, disallowmissing=true);")
+)
+```
+
+Now, we transfer a subset of our dataframe from Julia to R by using the function `julia_eval`.  
+
+```{r}
+agrenFit <- julia_eval("agren[:,[1,2,3,4,5,6]]")
+```
+
+```{r}
+vioplot::vioplot(agrenFit, 
+            names=names(agrenFit), 
+            main = "ViolinPlot of Fitness Values per site and year", 
+            xlab ="Site", 
+            ylab =  "Fitness Values",
+            col = rainbow(6))
+```
+
+<!-- #region slideshow={"slide_type": "slide"} -->
+## Summary
+
+* JuliaCall provides access to Julia's high-performance computing capabilities, which can be useful for tasks that require intensive numerical computations.
+
+* Access to Julia's packages.
+
+* JuliaCall makes it easy to integrate Julia code into R programs, allowing users to combine the strengths of both languages in a single workflow.
+
+* Interoperability: JuliaCall allows for seamless interoperability between R and Julia, enabling users to easily pass data and objects between the two languages.
+
+
+<!-- #endregion -->
+
+```{r}
+sessionInfo()
+```
+
+## Exercise: using `julia_call` package in R
+
+<!-- #region -->
+If you are an extensive R user and are not ready to fully switch to Julia, but still want to experience some features in Julia, such as using some Julia packages for your data analysis, this exercise would be particularly of your interests. 
+
+For this exercise, we would use the Julia package `MatrixLM.jl`, a fast application of fitting multivariate linear models in Julia. We will fit the model:
+
+$$Y = XBZ^T+E
+$$
+
+where 
+
+- $Y$ is the multivariate response of dimension $n \times m$
+- $X$ is the design matrix of row covariates of dimension $n \times p$
+- $Z$ is the design matrix of column covariates of dimension $m \times q$
+- $B$ is the matrix of interative effects of row and column covariates; it has dimension $p \times q$
+- $E$ is the $n \times m$ matrix of normal noises.
+
+
+We will be simulating data using R code, and use `MatrixLM.jl`
+
+The goal of this exercise is mainly to familiarize you with the `R/julia_call` functionalities, by which you can easily utilize some additional features in Julia running Julia packages in the backend, while still staying in the R interface.
+<!-- #endregion -->
+
+#### Ex.1: Simulate data in R
+
+
+Set the random seed to be 1. Then, simulate the data as the following:
+
+- n = 100, m = 250
+- The number of row covariates, p = 5
+- The number of column covariates, q = 5
+- Simulate X, Z, B as matrices of uniformly distributed numbers in [0, 1], of the corresponding sizes 
+- Simulate random normal errors E with standard deviation $\sigma = 0.1$
+- Simulate Y by the model $Y = XBZ^T+E$
+
+```{r}
+
+```
+
+#### Ex.2: Load data into Julia 
+(using `julia_assign()`)
+
+```{r}
+
+```
+
+#### Ex.3: Check all simulated data has been loaded into Julia
+(using `julia_exists`)
+
+```{r}
+
+```
+
+#### Ex.4 - Load package in Julia
+(using `julia_library()`)
+
+```{r}
+
+```
+
+#### Ex.5: Extract the output from Julia into R 
+
+
+First, evaluate the Matrix Linear Model by running the following Julia command (you can copy and paste each line to a line executing `julia_command()`)
+
+
+```julia
+dat = RawData(Response(Y), Predictors(X, Z));
+est = mlm(dat; hasXIntercept = false, hasZIntercept = false);
+
+```
+
+
+Next, after the package finished the task, extract the output estimated $B$ and assign it to a variable in R environment.
+
+**Which one should you use? `julia_command()` or `julia_eval()`? Test it out!**
+
+```{r}
+
+```

@@ -1,0 +1,250 @@
+---
+jupyter:
+  jupytext:
+    formats: ipynb,Rmd
+    text_representation:
+      extension: .Rmd
+      format_name: rmarkdown
+      format_version: '1.2'
+      jupytext_version: 1.14.5
+  kernelspec:
+    display_name: R
+    language: R
+    name: ir
+---
+
+## Exercise: using `julia_call` package in R
+
+<!-- #region -->
+If you are an extensive R user and are not ready to fully switch to Julia, but still want to experience some features in Julia, such as using some Julia packages for your data analysis, this exercise would be particularly of your interests. 
+
+For this exercise, we would use the Julia package `MatrixLM.jl`, a fast application of fitting multivariate linear models in Julia. We will fit the model:
+
+$$Y = XBZ^T+E
+$$
+
+where 
+
+- $Y$ is the multivariate response of dimension $n \times m$
+- $X$ is the design matrix of row covariates of dimension $n \times p$
+- $Z$ is the design matrix of column covariates of dimension $m \times q$
+- $B$ is the matrix of interative effects of row and column covariates; it has dimension $p \times q$
+- $E$ is the $n \times m$ matrix of normal noises.
+
+
+We will be simulating data using R code, and use `MatrixLM.jl`
+
+The goal of this exercise is mainly to familiarize you with the `R/julia_call` functionalities, by which you can easily utilize some additional features in Julia running Julia packages in the backend, while still staying in the R interface.
+<!-- #endregion -->
+
+**Load R libraries:**
+
+```{r}
+library(dplyr);
+
+# install.packages(JuliaCall)
+library(JuliaCall)
+# julia_setup(installJulia = TRUE) # for the first time, run this to initialize JuliaCall
+```
+
+#### Ex.1: Simulate data in R
+
+
+Set the random seed to be 1. Then, simulate the data as the following:
+
+- n = 100, m = 250
+- The number of row covariates, p = 5
+- The number of column covariates, q = 5
+- Simulate X, Z, B as matrices of uniformly distributed numbers in [0, 1], of the corresponding sizes 
+- Simulate random normal errors E with standard deviation $\sigma = 0.1$
+- Simulate Y by the model $Y = XBZ^T+E$
+
+```{r}
+
+```
+
+##### Ex.1 - solution:
+
+```{r}
+# Sizes of row covariates
+n <- 100
+p <- 5
+
+# Sizes of column covariates
+m <- 250
+q <- 5
+```
+
+```{r}
+# set random seed
+set.seed(1)
+
+X = matrix(runif(n*p), nrow = n) # design matrix of row covariates X
+Z = matrix(runif(m*q), nrow = m) # design matrix of column covariates X
+
+B = matrix(runif(p*q, -5, 5), nrow = p) # true coefficient matrix B
+E = matrix(rnorm(n*m, sd = 0.1), nrow = n) # standard normal errors E
+Y = X %*% B %*% t(Z) + E # simulating multivariate response matrix Y
+```
+
+<!-- #region jp-MarkdownHeadingCollapsed=true -->
+#### Ex.2: Load data into Julia 
+(using `julia_assign()`)
+<!-- #endregion -->
+
+```{r}
+
+```
+
+```{r}
+
+```
+
+##### Ex.2 - solution:
+
+```{r}
+# Assign variables to the Julia environment...
+julia_assign("X", X);
+julia_assign("B", B);
+julia_assign("Z", Z);
+julia_assign("Y", Y)
+```
+
+Then, for example, if you run
+
+```{r}
+julia_eval("X[1:6, :]") # check the first 6 rows of X in Julia
+```
+
+and
+
+```{r}
+head(X) # check the first 6 rows of X in R
+```
+
+you shall see that the X matrix has been loaded into Julia.
+
+
+#### Ex.3: Check all simulated data has been loaded into Julia
+(using `julia_exists`)
+
+```{r}
+
+```
+
+```{r}
+
+```
+
+##### Ex.3 - solution:
+
+```{r}
+sapply(c("X", "B", "Z", "Y"), julia_exists)
+```
+
+you should be able to confirm that the data has been loaded into Julia.
+
+
+#### Ex.4 - Load package in Julia
+(using `julia_library()`)
+
+```{r}
+
+```
+
+##### Ex.4 - solution:
+
+```{r}
+julia_library("MatrixLM")
+```
+
+or, more intuitively, use `julia_command()` or `julia_eval()`
+
+```{r}
+julia_eval("using MatrixLM") # will print NULL because nothing is returned from this command
+```
+
+```{r}
+julia_command("using MatrixLM");
+```
+
+#### Ex.5: Extract the output from Julia into R 
+
+
+First, evaluate the Matrix Linear Model by running the following Julia command (you can copy and paste each line to a line executing `julia_command()`)
+
+
+```julia
+dat = RawData(Response(Y), Predictors(X, Z));
+est = mlm(dat; hasXIntercept = false, hasZIntercept = false);
+
+```
+
+
+Next, after the package finished the task, extract the output estimated $B$ and assign it to a variable in R environment.
+
+**Which one should you use? `julia_command()` or `julia_eval()`? Test it out!**
+
+
+```julia
+coef(est)
+```
+
+
+##### Ex.5 - solution:
+
+```{r}
+# Construct a RawData object
+julia_command("dat = RawData(Response(Y), Predictors(X, Z));")
+julia_command("est = mlm(dat; hasXIntercept = false, hasZIntercept = false);")
+```
+
+We shall learn that `julia_command()` will not return the output but only display the result as in the Julia console.
+
+```{r}
+B_hat_nothing <- julia_command("coef(est)")
+```
+
+```{r}
+class(B_hat_nothing)
+```
+
+We shall use `julia_eval()` to execute the command and assign the output returned to a variable to be used in R later.
+
+```{r}
+B_hat <- julia_eval("coef(est)") # Get the coefficients of the model
+```
+
+```{r}
+class(B_hat)
+```
+
+Check that you shall get the similar results as the following:
+
+```{r}
+B_hat |> round(digits = 2) # estimated coefficients by MatrixLM
+```
+
+```{r}
+B |> round(digits = 2) # true coefficients
+```
+
+##### Appendix: a simple example of downstream analysis in R!
+
+
+Packages in Julia, such as `MatrixLM.jl` (feel free to explore [here](https://github.com/senresearch/MatrixLM.jl)), provides many useful features. With `JuliaCall`, R users can easily use these features in Julia for computational tasks in the backend, and extract the results for downstream analyses in R.
+
+
+For example, with `MatrixLM.jl`, we can get residuals from the fitted model 
+
+```{r}
+resids <- julia_eval("resids = resid(est)");
+```
+
+then visualize the result (with any graphing tools of your choice) using the powerful visualization features in R.
+
+```{r}
+hist(resids) # here we just used Base.R
+```
+
+Hope you enjoyed the workshop and hope you will explore Julia more yourself in the future!
