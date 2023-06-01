@@ -123,3 +123,6 @@ maths with KaTeX, optional pre-rendering, written in Julia.*"
 [Noteworthy Differences from other Languages](https://docs.julialang.org/en/v1/manual/noteworthy-differences/)
 
 [Julia Cheat Sheet](https://juliadocs.github.io/Julia-Cheat-Sheet/)
+
+## License
+The material of `ENAR2023JuliaWorkshop` is licensed under the CC-BY-NC-SA-4.0 license. For more information, please refer to the [LICENSE](LICENSE.md) file in the repository.
